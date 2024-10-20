@@ -12,10 +12,12 @@ public class QR_Paralelo {
         
         for (int i = 0; i < A.getCols(); i++) {
             Thread[] threads = new Thread[HILOS];
+            // Ejecuta todos los threads
             for (int t = 0; t < HILOS; t++) {
                 threads[t] = new Thread(new Oper1(t + 1, A, R, i));
                 threads[t].start();
             }
+            // Aquí el thread:main espera a los otros threads antes de continuar su ejecución
             try {
                 for (int t = 0; t < HILOS; t++) {
                     threads[t].join();
@@ -27,10 +29,12 @@ public class QR_Paralelo {
             for (int j = i; j < A.getCols(); j++) {
                 R.SetCell(i, j, R.GetCell(i, j) / x);
             }
+            // De la misma manera , se ejecutan los threads on otra operación
             for (int t = 0; t < HILOS; t++) {
                 threads[t] = new Thread(new Oper2(t + 1, A, R, i));
                 threads[t].start();
             }
+            // Volvemos a esperar a que finalicen los threads antes de seguir
             try {
                 for (int t = 0; t < HILOS; t++) {
                     threads[t].join();
