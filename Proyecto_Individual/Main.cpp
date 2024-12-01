@@ -4,6 +4,35 @@
 #include <limits>
 #include <vector>
 #include <chrono>
+#include <omp.h>
+
+#define N 3
+#define MATRIX_SIZE
+struct record_s
+{
+    double val;
+    long prod;
+    struct record_s *next_p;
+};
+
+struct buf_list
+{
+    struct record_s *head_p;
+    struct record_s *tail_p;
+};
+
+struct buf_list buff[N];
+
+long producers_done[N];
+
+struct record_s *Create_record(long my_rank, double data)
+{
+    struct record_s *rec_p = (struct record_s *)malloc(sizeof(struct record_s));
+    rec_p->val = data;
+    rec_p->prod = my_rank;
+    rec_p->next_p = NULL;
+    return rec_p;
+}
 
 using namespace std;
 
@@ -21,6 +50,81 @@ vector<vector<double>> createAugmentedMatrix();
 void MenuMetodos();
 void Jacobi();
 void GaussJordan(vector<vector<double>> &a, vector<double> &x);
+void GaussJordanOpenMP(vector<vector<double>> &a, vector<double> &x);
+void Enqueue(long my_rank, struct record_s *rec_p)
+{
+    if (buff[my_rank].tail_p == NULL)
+    {
+        buff[my_rank].head_p = rec_p;
+        buff[my_rank].tail_p = rec_p;
+    }
+    else
+    {
+        buff[my_rank].tail_p->next_p = rec_p;
+        buff[my_rank].tail_p = rec_p;
+    }
+}
+void Put(long my_rank, double data)
+{
+    struct record_s *rec_p;
+    rec_p = Create_record(my_rank, data);
+
+#pragma omp critical(queue)
+    {
+        Enqueue(my_rank, rec_p);
+    }
+
+#pragma omp critical(done)
+    producers_done[my_rank]++;
+}
+struct record_s *Dequeue(long myrank)
+{
+    struct record_s *rec_p;
+    if (buff[myrank].head_p == NULL)
+    {
+        return NULL;
+    }
+    else if (buff[myrank].head_p == buff[myrank].tail_p)
+    {
+        // One record in queue
+        rec_p = buff[myrank].head_p;
+        buff[myrank].head_p = buff[myrank].tail_p = NULL;
+    }
+    else
+    {
+        rec_p = buff[myrank].head_p;
+        buff[myrank].head_p = buff[myrank].head_p->next_p;
+    }
+    return rec_p;
+}
+double Get(long my_rank)
+{
+    struct record_s *rec_p;
+    double data;
+    while (producers_done[my_rank] < 1 ||
+           buff[my_rank].head_p != NULL)
+    {
+#pragma omp critical(queue)
+        {
+            rec_p = Dequeue(my_rank);
+        }
+        if (rec_p != NULL)
+        {
+            data = rec_p->val;
+            free(rec_p);
+            return data;
+        }
+    }
+    return -1;
+}
+void Initialize_pipeline()
+{
+    for (int i = 0; i < N; i++)
+    {
+        buff[i].head_p = buff[i].tail_p = NULL;
+        producers_done[i] = 0;
+    }
+}
 
 int main()
 {
@@ -83,6 +187,7 @@ void MenuMetodos()
             // TODO: Imprimir la solución
             break;
         }
+        // Gauss-Jordan: Serial
         else if (choice == 2)
         {
             auto start = std::chrono::high_resolution_clock::now();
@@ -98,7 +203,23 @@ void MenuMetodos()
             cout << "Tiempo de ejecución: " << duration.count() * 1000 << " ms\n";
             break;
         }
+        // Gauss-Jordan: Paralelo
         else if (choice == 3)
+        {
+            auto start = std::chrono::high_resolution_clock::now();
+            GaussJordanOpenMP(a, x);
+            auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> duration = end - start;
+            cout << "Solution: ";
+            for (double xi : x)
+            {
+                cout << xi << " ";
+            }
+            cout << endl;
+            cout << "Tiempo de ejecución: " << duration.count() * 1000 << " ms\n";
+            break;
+        }
+        else if (choice == 4)
         {
             cout << "Volviendo al menú principal..." << endl;
             break;
@@ -106,7 +227,6 @@ void MenuMetodos()
         else
         {
             cout << "Opción inválida, inténtelo nuevamente." << endl;
-            // Clear the input buffer in case of invalid input
             cin.clear();
             cin.ignore(numeric_limits<streamsize>::max(), '\n');
         }
@@ -139,10 +259,74 @@ void GaussJordan(vector<vector<double>> &a, vector<double> &x)
         }
     }
 
-    // Back substitution
     for (int i = 0; i < n; i++)
     {
         x[i] = a[i][n] / a[i][i];
+    }
+}
+void GaussJordanOpenMP(vector<vector<double>> &a, vector<double> &x)
+{
+    n = a.size();
+    x.resize(n, 0);
+    cout << "Aplicando Eliminación Gaussiana con OpenMP..." << endl;
+
+    Initialize_pipeline();
+
+#pragma omp parallel
+    {
+        long my_rank = omp_get_thread_num();
+        long bsize = n / omp_get_num_threads();
+        double row;
+
+        if (my_rank != 0)
+        {
+            for (long k = my_rank * bsize; k < (my_rank + 1) * bsize; k++)
+            {
+                row = Get(my_rank);
+                Put(my_rank + 1, row);
+                for (long i = 0; i < k + bsize; i++)
+                {
+                    if (row != i)
+                    {
+                        for (long j = k; j < n + 1; j++)
+                        {
+                            a[i][j] -= (a[i][row] / a[row][row]) * a[row][j];
+                        }
+                    }
+                }
+            }
+        }
+        else
+        {
+            for (long k = my_rank * bsize; k < (my_rank + 1) * bsize; k++)
+            {
+                Put(my_rank + 1, k);
+                for (long i = 0; i < k + bsize; i++)
+                {
+                    if (k != i)
+                    {
+                        for (long j = k + 1; j < n + 1; j++)
+                        {
+                            a[i][j] -= (a[i][k] / a[k][k]) * a[k][j];
+                        }
+                    }
+                }
+            }
+        }
+
+#pragma omp barrier
+#pragma omp single
+        {
+            for (long i = n - 1; i >= 0; i--)
+            {
+                x[i] = a[i][n];
+                for (long j = i + 1; j < n; j++)
+                {
+                    x[i] -= a[i][j] * x[j];
+                }
+                x[i] /= a[i][i];
+            }
+        }
     }
 }
 vector<vector<double>> createAugmentedMatrix()
@@ -180,7 +364,8 @@ void MenuMetodosOpciones()
     cout << "========================" << endl;
     cout << "1. Jacobi" << endl;
     cout << "2. Gauss-Jordan" << endl;
-    cout << "3. Exit" << endl;
+    cout << "3. Gauss-Jordan OpenMP" << endl;
+    cout << "4. Exit" << endl;
     cout << "Seleccione una opción: ";
 }
 void MenuPrincipalOpciones()
