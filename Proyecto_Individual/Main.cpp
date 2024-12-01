@@ -3,70 +3,104 @@
 #include <string>
 #include <limits>
 #include <vector>
+#include <chrono>
+
 using namespace std;
 
 vector<vector<double>> a;
 int n;
 vector<double> x;
 
-// Function prototypes
-void generateRandomMatrix();
-void readMatrixFromFile();
-void showJacobiMenu();
-void applyJacobiMethod();
+void PrintMatrix(vector<vector<double>> &a);
+void Banner();
+void MenuPrincipalOpciones();
+void MenuMetodosOpciones();
+vector<vector<double>> generateRandomMatrix();
+vector<vector<double>> readMatrixFromFile();
 vector<vector<double>> createAugmentedMatrix();
-void eliminacionGaussiana(vector<vector<double>> &a, vector<double> &x);
+void MenuMetodos();
+void Jacobi();
+void GaussJordan(vector<vector<double>> &a, vector<double> &x);
 
 int main()
 {
-
-    cout << "+=================================================================+" << endl;
-    cout << "|  ____                                  _               _        |" << endl;
-    cout << "| |  _ \\  _ __  ___   _   _   ___   ___ | |_  ___     __| |  ___  |" << endl;
-    cout << "| | |_) || '__|/ _ \\ | | | | / _ \\ / __|| __|/ _ \\   / _` | / _ \\ |" << endl;
-    cout << "| |  __/ | |  | (_) || |_| ||  __/| (__ | |_| (_) | | (_| ||  __/ |" << endl;
-    cout << "| |_|__  |_|   \\___/  \\__, |_\\___| \\___| \\__|\\___/   \\__,_| \\___| |" << endl;
-    cout << "| |  _ \\  __ _  _ __  |___/| |  ___ | |  __ _                     |" << endl;
-    cout << "| | |_) |/ _` || '__|/ _` || | / _ \\| | / _` |                    |" << endl;
-    cout << "| |  __/| (_| || |  | (_| || ||  __/| || (_| |                    |" << endl;
-    cout << "| |_|    \\__,_||_|   \\__,_||_| \\___||_| \\__,_|                    |" << endl;
-    cout << "+=================================================================+" << endl;
-
+    Banner();
     // Menú
-    int choice, n;
-    vector<vector<double>> a;
-    vector<double> x;
+    int choice;
     while (true)
     {
         // Menú principal
-        cout << "===========================" << endl;
-        cout << "1. Generate Random Matrix" << endl;
-        cout << "2. Read Matrix From File" << endl;
-        cout << "3. Matriz de ejemplo" << endl;
-        cout << "4. Exit" << endl;
-        cout << "Seleccione una opción: ";
+        MenuPrincipalOpciones();
         cin >> choice;
 
         if (choice == 1)
         {
-            generateRandomMatrix();
-            showJacobiMenu();
+            a = generateRandomMatrix();
+            PrintMatrix(a);
+            MenuMetodos();
         }
         else if (choice == 2)
         {
-            readMatrixFromFile();
-            showJacobiMenu();
+            a = readMatrixFromFile();
+            PrintMatrix(a);
+            MenuMetodos();
         }
         else if (choice == 3)
         {
             a = createAugmentedMatrix();
-            n = a.size();
-            x.resize(n, 0);
-            showJacobiMenu();
+            PrintMatrix(a);
+            MenuMetodos();
         }
         else if (choice == 4)
         {
             cout << "Finalizando la ejecución del programa..." << endl;
+            break;
+        }
+        else
+        {
+            cout << "Opción inválida, inténtelo nuevamente." << endl;
+            cin.clear();
+            cin.ignore(numeric_limits<streamsize>::max(), '\n');
+        }
+    }
+
+    return 0;
+}
+
+// Menú de Métodos
+void MenuMetodos()
+{
+    int choice;
+    MenuMetodosOpciones();
+    while (true)
+    {
+
+        cin >> choice;
+
+        if (choice == 1)
+        {
+            Jacobi();
+            // TODO: Imprimir la solución
+            break;
+        }
+        else if (choice == 2)
+        {
+            auto start = std::chrono::high_resolution_clock::now();
+            GaussJordan(a, x);
+            auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> duration = end - start;
+            cout << "Solution: ";
+            for (double xi : x)
+            {
+                cout << xi << " ";
+            }
+            cout << endl;
+            cout << "Tiempo de ejecución: " << duration.count() * 1000 << " ms\n";
+            break;
+        }
+        else if (choice == 3)
+        {
+            cout << "Volviendo al menú principal..." << endl;
             break;
         }
         else
@@ -77,96 +111,25 @@ int main()
             cin.ignore(numeric_limits<streamsize>::max(), '\n');
         }
     }
-
-    return 0;
-}
-vector<vector<double>> createAugmentedMatrix()
-{
-    // Define and return the augmented matrix for the system of equations
-    // Example: 2x + y + z = 5, 4x + 5y + 6z = 8, 3x + 2y + 3z = 7
-    return {
-        {2, 1, 1, 5},
-        {4, 5, 6, 8},
-        {3, 2, 3, 7}};
-}
-// First-level menu options
-void generateRandomMatrix()
-{
-    // Empty function for generating random matrix
-    cout << "Generating random matrix..." << endl;
 }
 
-void readMatrixFromFile()
-{
-    // Empty function for reading matrix from file
-    cout << "Reading matrix from file..." << endl;
-}
-
-// Second-level menu
-void showJacobiMenu()
-{
-    int choice;
-
-    while (true)
-    {
-        cout << "========================" << endl;
-        cout << "1. Método de Jacobi" << endl;
-        cout << "2. Eliminación Gaussiana" << endl;
-        cout << "3. Exit" << endl;
-        cout << "Please select an option: ";
-        cin >> choice;
-
-        if (choice == 1)
-        {
-            applyJacobiMethod();
-            break; // After applying Jacobi method, return to the previous menu
-        }
-        else if (choice == 2)
-        {
-            eliminacionGaussiana(a, x);
-            cout << "Solution: ";
-            for (double xi : x)
-            {
-                cout << xi << " ";
-            }
-            cout << endl;
-            break; // Exit the second menu
-        }
-        else if (choice == 3)
-        {
-            cout << "Volviendo al menú principal..." << endl;
-            break; // Exit the second menu
-        }
-        else
-        {
-            cout << "Invalid choice, please try again." << endl;
-            // Clear the input buffer in case of invalid input
-            cin.clear();
-            cin.ignore(numeric_limits<streamsize>::max(), '\n');
-        }
-    }
-}
-
-void applyJacobiMethod()
+void Jacobi()
 {
     // Empty function for applying Jacobi method
     cout << "Aplicando el método de Jacobi..." << endl;
 }
 
-void eliminacionGaussiana(vector<vector<double>> &a, vector<double> &x)
+void GaussJordan(vector<vector<double>> &a, vector<double> &x)
 {
+    n = a.size();
+    x.resize(n, 0);
     cout << "Aplicando Eliminación Gaussiana..." << endl;
-    int n = a.size();
-
-    // Forward elimination
     for (int k = 0; k < n; k++)
     {
-        // Make the diagonal element a[k][k] to be the pivot
         for (int i = 0; i < n; i++)
         {
             if (k != i)
             {
-                // Eliminate the element a[i][k] by subtracting a multiple of row k from row i
                 double factor = a[i][k] / a[k][k];
                 for (int j = k + 1; j < n + 1; j++)
                 {
@@ -181,4 +144,65 @@ void eliminacionGaussiana(vector<vector<double>> &a, vector<double> &x)
     {
         x[i] = a[i][n] / a[i][i];
     }
+}
+vector<vector<double>> createAugmentedMatrix()
+{
+    return {
+        {2, 1, 1, 5},
+        {4, 5, 6, 8},
+        {3, 2, 3, 7}};
+}
+vector<vector<double>> generateRandomMatrix()
+{
+    cout << "Generating random matrix..." << endl;
+    return {};
+}
+
+vector<vector<double>> readMatrixFromFile()
+{
+    cout << "Reading matrix from file..." << endl;
+    return {};
+}
+void PrintMatrix(vector<vector<double>> &a)
+{
+    cout << "Matrix:\n";
+    for (int i = 0; i < a.size(); i++)
+    {
+        for (int j = 0; j < a[0].size(); j++)
+        {
+            cout << a[i][j] << " ";
+        }
+        cout << endl;
+    }
+}
+void MenuMetodosOpciones()
+{
+    cout << "========================" << endl;
+    cout << "1. Jacobi" << endl;
+    cout << "2. Gauss-Jordan" << endl;
+    cout << "3. Exit" << endl;
+    cout << "Seleccione una opción: ";
+}
+void MenuPrincipalOpciones()
+{
+    cout << "===========================" << endl;
+    cout << "1. Generate Random Matrix" << endl;
+    cout << "2. Read Matrix From File" << endl;
+    cout << "3. Matriz de ejemplo" << endl;
+    cout << "4. Exit" << endl;
+    cout << "Seleccione una opción: ";
+}
+void Banner()
+{
+    cout << "+=================================================================+" << endl;
+    cout << "|  ____                                  _               _        |" << endl;
+    cout << "| |  _ \\  _ __  ___   _   _   ___   ___ | |_  ___     __| |  ___  |" << endl;
+    cout << "| | |_) || '__|/ _ \\ | | | | / _ \\ / __|| __|/ _ \\   / _` | / _ \\ |" << endl;
+    cout << "| |  __/ | |  | (_) || |_| ||  __/| (__ | |_| (_) | | (_| ||  __/ |" << endl;
+    cout << "| |_|__  |_|   \\___/  \\__, |_\\___| \\___| \\__|\\___/   \\__,_| \\___| |" << endl;
+    cout << "| |  _ \\  __ _  _ __  |___/| |  ___ | |  __ _                     |" << endl;
+    cout << "| | |_) |/ _` || '__|/ _` || | / _ \\| | / _` |                    |" << endl;
+    cout << "| |  __/| (_| || |  | (_| || ||  __/| || (_| |                    |" << endl;
+    cout << "| |_|    \\__,_||_|   \\__,_||_| \\___||_| \\__,_|                    |" << endl;
+    cout << "+=================================================================+" << endl;
 }
