@@ -271,24 +271,23 @@ void GaussJordanOpenMP(vector<vector<double>> &a, vector<double> &x)
     cout << "Aplicando Eliminación Gaussiana con OpenMP..." << endl;
 
     Initialize_pipeline();
-
-#pragma omp parallel
+    int k, i, j, row;
+#pragma omp parallel private(k, i, j, row) shared(a)
     {
-        long my_rank = omp_get_thread_num();
-        long bsize = n / omp_get_num_threads();
-        double row;
-
+        int my_rank = omp_get_thread_num();
+        int bsize = n / omp_get_num_threads();
         if (my_rank != 0)
         {
-            for (long k = my_rank * bsize; k < (my_rank + 1) * bsize; k++)
+            for (k = my_rank * bsize; k < (my_rank + 1) * bsize; k++)
             {
                 row = Get(my_rank);
                 Put(my_rank + 1, row);
-                for (long i = 0; i < k + bsize; i++)
+
+                for (i = 0; i <= k + bsize; i++)
                 {
                     if (row != i)
                     {
-                        for (long j = k; j < n + 1; j++)
+                        for (j = k; j <= n + 1; j++)
                         {
                             a[i][j] -= (a[i][row] / a[row][row]) * a[row][j];
                         }
@@ -298,14 +297,15 @@ void GaussJordanOpenMP(vector<vector<double>> &a, vector<double> &x)
         }
         else
         {
-            for (long k = my_rank * bsize; k < (my_rank + 1) * bsize; k++)
+            for (k = my_rank * bsize; k < (my_rank + 1) * bsize; k++)
             {
                 Put(my_rank + 1, k);
-                for (long i = 0; i < k + bsize; i++)
+
+                for (i = 0; i <= k + bsize; i++)
                 {
                     if (k != i)
                     {
-                        for (long j = k + 1; j < n + 1; j++)
+                        for (j = k + 1; j <= n + 1; j++)
                         {
                             a[i][j] -= (a[i][k] / a[k][k]) * a[k][j];
                         }
@@ -315,12 +315,13 @@ void GaussJordanOpenMP(vector<vector<double>> &a, vector<double> &x)
         }
 
 #pragma omp barrier
+
 #pragma omp single
         {
-            for (long i = n - 1; i >= 0; i--)
+            for (i = n - 1; i >= 0; i--)
             {
                 x[i] = a[i][n];
-                for (long j = i + 1; j < n; j++)
+                for (j = i + 1; j < n; j++)
                 {
                     x[i] -= a[i][j] * x[j];
                 }
@@ -366,7 +367,7 @@ void MenuMetodosOpciones()
     cout << "2. Gauss-Jordan" << endl;
     cout << "3. Gauss-Jordan OpenMP" << endl;
     cout << "4. Exit" << endl;
-    cout << "Seleccione una opción: ";
+    cout << "Seleccione una opcion: ";
 }
 void MenuPrincipalOpciones()
 {
@@ -375,7 +376,7 @@ void MenuPrincipalOpciones()
     cout << "2. Read Matrix From File" << endl;
     cout << "3. Matriz de ejemplo" << endl;
     cout << "4. Exit" << endl;
-    cout << "Seleccione una opción: ";
+    cout << "Seleccione una opcion: ";
 }
 void Banner()
 {
