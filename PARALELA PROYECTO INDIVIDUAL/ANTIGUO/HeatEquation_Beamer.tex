@@ -1,0 +1,147 @@
+
+\documentclass{beamer}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath}
+\usepackage{listings}
+\usepackage{color}
+
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{0.95,0.95,0.92}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegray},
+    keywordstyle=\color{blue},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                    
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2
+}
+
+\lstset{style=mystyle}
+
+\title{Resolución de la Ecuación del Calor}
+\author{Presentación basada en código C++}
+\date{\today}
+
+\begin{document}
+
+\frame{\titlepage}
+
+\section{Introducción}
+\begin{frame}{Introducción}
+    La ecuación del calor en una dimensión describe la evolución de la temperatura en una barra metálica delgada:
+    \[
+    \frac{\partial u}{\partial t} = \kappa \frac{\partial^2 u}{\partial x^2} + f(x, t)
+    \]
+    donde:
+    \begin{itemize}
+        \item \(u(x, t)\): Temperatura en el punto \(x\) y tiempo \(t\).
+        \item \(\kappa\): Conductividad térmica.
+        \item \(f(x, t)\): Fuente de calor conocida.
+    \end{itemize}
+\end{frame}
+
+\section{Método de Diferencias Finitas}
+\begin{frame}{Método de Diferencias Finitas}
+    La ecuación se resuelve discretizando el tiempo y el espacio:
+    \begin{align*}
+        \frac{\partial u}{\partial t} &\approx \frac{u_i^{\ell+1} - u_i^\ell}{\Delta t}, \\
+        \frac{\partial^2 u}{\partial x^2} &\approx \frac{u_{i-1}^\ell - 2u_i^\ell + u_{i+1}^\ell}{\Delta x^2}.
+    \end{align*}
+    Esto nos lleva a un esquema explícito para calcular \(u_i^{\ell+1}\):
+    \[
+    u_i^{\ell+1} = u_i^\ell + \kappa \frac{\Delta t}{\Delta x^2}(u_{i-1}^\ell - 2u_i^\ell + u_{i+1}^\ell) + \Delta t \cdot f(x_i, t_\ell).
+    \]
+\end{frame}
+
+\section{Implementación en Serie}
+\begin{frame}[fragile]{Implementación en Serie}
+\begin{lstlisting}[language=C++, caption=Código en C++ para la implementación en serie]
+#include <iostream>
+#include <vector>
+#include <cmath>
+using namespace std;
+
+const double kappa = 0.1;
+const double L = 1.0;
+const double T = 1.0;
+const int n = 100, m = 1000;
+
+double f(double x, double t) { return 0.0; }
+double initialCondition(double x) { return sin(M_PI * x); }
+
+int main() {
+    double dx = L / (n - 1), dt = T / m, alpha = kappa * dt / (dx * dx);
+    vector<double> u_prev(n, 0.0), u(n, 0.0);
+
+    for (int i = 0; i < n; ++i) u_prev[i] = initialCondition(i * dx);
+    for (int t = 0; t < m; ++t) {
+        for (int i = 1; i < n - 1; ++i)
+            u[i] = u_prev[i] + alpha * (u_prev[i - 1] - 2 * u_prev[i] + u_prev[i + 1]) + dt * f(i * dx, t * dt);
+        u[0] = u[n - 1] = 0.0;
+        u_prev = u;
+    }
+    for (int i = 0; i < n; ++i) cout << "u(" << i * dx << ") = " << u[i] << endl;
+    return 0;
+}
+\end{lstlisting}
+\end{frame}
+
+\section{Implementación Paralela}
+\begin{frame}[fragile]{Implementación Paralela}
+\begin{lstlisting}[language=C++, caption=Código en C++ para la implementación paralela]
+#include <mpi.h>
+#include <iostream>
+#include <vector>
+#include <cmath>
+using namespace std;
+
+const double kappa = 0.1;
+const double L = 1.0;
+const double T = 1.0;
+const int n = 100, m = 1000;
+
+double f(double x, double t) { return 0.0; }
+double initialCondition(double x) { return sin(M_PI * x); }
+
+int main(int argc, char** argv) {
+    MPI_Init(&argc, &argv);
+    int rank, size;
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    double dx = L / (n - 1), dt = T / m, alpha = kappa * dt / (dx * dx);
+    int local_n = n / size + (rank == size - 1 ? n % size : 0);
+    vector<double> u_prev(local_n + 2, 0.0), u(local_n + 2, 0.0);
+
+    for (int i = 1; i <= local_n; ++i)
+        u_prev[i] = initialCondition((rank * (n / size) + i - 1) * dx);
+
+    for (int t = 0; t < m; ++t) {
+        if (rank > 0) MPI_Send(&u_prev[1], 1, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD);
+        if (rank < size - 1) MPI_Send(&u_prev[local_n], 1, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD);
+        if (rank > 0) MPI_Recv(&u_prev[0], 1, MPI_DOUBLE, rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        if (rank < size - 1) MPI_Recv(&u_prev[local_n + 1], 1, MPI_DOUBLE, rank + 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+        for (int i = 1; i <= local_n; ++i)
+            u[i] = u_prev[i] + alpha * (u_prev[i - 1] - 2 * u_prev[i] + u_prev[i + 1]) + dt * f((rank * (n / size) + i - 1) * dx, t * dt);
+        swap(u_prev, u);
+    }
+    MPI_Finalize();
+    return 0;
+}
+\end{lstlisting}
+\end{frame}
+
+\end{document}
